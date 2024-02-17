@@ -100,16 +100,19 @@
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
-    <Image Include="doge.png">
-      <Filter>Resource Files\Images</Filter>
-    </Image>
-  </ItemGroup>
-  <ItemGroup>
     <None Include="T1_Shader.vert">
       <Filter>Resource Files\Shaders</Filter>
     </None>
     <None Include="T1_Shader.frag">
       <Filter>Resource Files\Shaders</Filter>
     </None>
+  </ItemGroup>
+  <ItemGroup>
+    <Image Include="dvd.png">
+      <Filter>Resource Files\Images</Filter>
+    </Image>
+    <Image Include="dalle.png">
+      <Filter>Resource Files\Images</Filter>
+    </Image>
   </ItemGroup>
 </Project>

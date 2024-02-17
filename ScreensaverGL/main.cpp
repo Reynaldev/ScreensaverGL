@@ -3,6 +3,9 @@
 #include <fstream>
 #include <sstream>
 
+#define STB_IMAGE_IMPLEMENTATION
+#include <stb_image.h>
+
 #define GLSL_VERSION	"#version 330 core"
 
 #define WIN_WIDTH		800
@@ -48,13 +51,17 @@ public:
 struct 
 {
 private:
+	// Box properties
 	unsigned int programId, bufferID;
-	GLuint texture;
 	float verts[32];
 	int indices[6];
 
+	// Texture properties
+	GLuint texture = 0;
+	int txWidth, txHeight, txChannels;
+
 public:
-	void create(int id, ImVec4 pts[4], ImVec4 col[4], ImVec4 tex[4], int ind[])
+	void create(int id, ImVec4 pts[4], ImVec4 col[4], ImVec4 tex[4], int ind[6])
 	{
 		this->bufferID = id;
 
@@ -82,7 +89,7 @@ public:
 			this->indices[i] = ind[i];
 	}
 
-	bool createShader(String vertFile, String fragFile)
+	void createShader(const char *vertFile, const char *fragFile)
 	{
 		String vertCode, fragCode;
 		std::ifstream vertShaderFile, fragShaderFile;
@@ -92,8 +99,8 @@ public:
 
 		try
 		{
-			vertShaderFile.open(vertFile.c_str());
-			fragShaderFile.open(fragFile.c_str());
+			vertShaderFile.open(vertFile);
+			fragShaderFile.open(fragFile);
 
 			std::stringstream vertShaderStream, fragShaderStream;
 
@@ -109,38 +116,38 @@ public:
 		catch (const std::ifstream::failure e)
 		{
 			printf("Error. Failed to read shader files\n");
-			return false;
+			return;
 		}
 
-		const char *vertShaderCode = vertCode.c_str();
-		const char *fragShaderCode = fragCode.c_str();
+		const char *vertShader = vertCode.c_str();
+		const char *fragShader = fragCode.c_str();
 
 		GLuint vertex, fragment;
 		int success;
 		char infoLog[512];
 
 		vertex = glCreateShader(GL_VERTEX_SHADER);
-		glShaderSource(vertex, 1, &vertShaderCode, NULL);
+		glShaderSource(vertex, 1, &vertShader, NULL);
 		glCompileShader(vertex);
 
 		glGetShaderiv(vertex, GL_COMPILE_STATUS, &success);
 		if (!success)
 		{
 			glGetShaderInfoLog(vertex, 512, NULL, infoLog);
-			printf("Vertex shader compilation failed\n%s\n", infoLog);
-			return false;
+			printf("%s\n", infoLog);
+			return;
 		}
 
 		fragment = glCreateShader(GL_FRAGMENT_SHADER);
-		glShaderSource(fragment, 1, &fragShaderCode, NULL);
+		glShaderSource(fragment, 1, &fragShader, NULL);
 		glCompileShader(fragment);
 
 		glGetShaderiv(fragment, GL_COMPILE_STATUS, &success);
 		if (!success)
 		{
 			glGetShaderInfoLog(fragment, 512, NULL, infoLog);
-			printf("Fragment shader compilation failed\n%s\n", infoLog);
-			return false;
+			printf("%s\n", infoLog);
+			return;
 		}
 
 		this->programId = glCreateProgram();
@@ -153,13 +160,11 @@ public:
 		{
 			glGetProgramInfoLog(this->programId, 512, NULL, infoLog);
 			printf("Program link failed\n%s\n", infoLog);
-			return false;
+			return;
 		}
 
 		glDeleteShader(vertex);
 		glDeleteShader(fragment);
-
-		return true;
 	}
 
 	void createBufferData()
@@ -182,6 +187,34 @@ public:
 		glEnableVertexAttribArray(2);
 	}
 
+	void createTexture(const char *txFile, GLint wrapS, GLint wrapT, GLint filterMin, GLint filterMag, GLenum fmt = GL_RGB)
+	{
+		glGenTextures(1, &this->texture);
+		glBindTexture(GL_TEXTURE_2D, texture);
+
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, wrapS);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, wrapT);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, filterMin);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, filterMag);
+
+		stbi_set_flip_vertically_on_load(true);
+
+		unsigned char *data = stbi_load(txFile, &this->txWidth, &this->txHeight, &this->txChannels, 0);
+		if (!data)
+		{
+			printf("Failed to load texture file\nFile: %s\n", txFile);
+			return;
+		}
+
+		glTexImage2D(GL_TEXTURE_2D, 0, fmt, this->txWidth, this->txHeight, 0, fmt, GL_UNSIGNED_BYTE, data);
+		glGenerateMipmap(GL_TEXTURE_2D);
+
+		this->use();
+		glUniform1i(glGetUniformLocation(this->programId, "uUseTexture"), true);
+
+		stbi_image_free(data);
+	}
+
 	void use()
 	{
 		glUseProgram(this->programId);
@@ -190,6 +223,11 @@ public:
 	void draw()
 	{
 		this->use();
+
+		if (this->texture != 0)
+		{
+			glBindTexture(GL_TEXTURE_2D, this->texture);
+		}
 
 		glBindVertexArray(GLBuffer.getVAO(this->bufferID));
 		glDrawElements(GL_TRIANGLES, sizeof(this->indices) / sizeof(int), GL_UNSIGNED_INT, 0);
@@ -247,7 +285,7 @@ int main()
 	ImGui::CreateContext();
 	ImGuiIO &io = ImGui::GetIO(); (void)io;
 
-	ImGui::StyleColorsDark;
+	ImGui::StyleColorsDark();
 
 	ImGui_ImplGlfw_InitForOpenGL(window, true);
 	ImGui_ImplOpenGL3_Init(GLSL_VERSION);
@@ -255,10 +293,10 @@ int main()
 
 	// Create box
 	ImVec4 boxPos[] = {
-		ImVec4(-0.5f,  0.5f, 0.0f, 0.0f),	// Top-left
-		ImVec4( 0.5f,  0.5f, 0.0f, 0.0f),	// Top-right
-		ImVec4( 0.5f, -0.5f, 0.0f, 0.0f),	// Bottom-right
-		ImVec4(-0.5f, -0.5f, 0.0f, 0.0f)	// Bottom-left
+		ImVec4(-0.25f,  0.25f, 0.0f, 0.0f),	// Top-left
+		ImVec4( 0.25f,  0.25f, 0.0f, 0.0f),	// Top-right
+		ImVec4( 0.25f, -0.25f, 0.0f, 0.0f),	// Bottom-right
+		ImVec4(-0.25f, -0.25f, 0.0f, 0.0f)	// Bottom-left
 	};
 
 	ImVec4 boxColor[] = {
@@ -282,6 +320,7 @@ int main()
 
 	Box.create(GLBuffer.createID(), boxPos, boxColor, boxTexCoords, boxIndices);
 	Box.createShader("T1_Shader.vert", "T1_Shader.frag");
+	Box.createTexture("dalle.png", GL_REPEAT, GL_REPEAT, GL_NEAREST_MIPMAP_NEAREST, GL_NEAREST, GL_RGB);
 	// Create box
 
 	GLBuffer.init();
@@ -312,6 +351,7 @@ int main()
 
 				ImGui::EndMenu();
 			}
+
 			ImGui::EndMainMenuBar();
 		}
 

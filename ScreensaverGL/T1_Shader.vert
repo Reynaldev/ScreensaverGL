@@ -2,10 +2,10 @@
 
 layout (location = 0) in vec3 iPos;
 layout (location = 1) in vec3 iColor;
-layout (location = 2) in vec3 iTexCoord;
+layout (location = 2) in vec2 iTexCoord;
 
 out vec3 color;
-out vec3 texCoord;
+out vec2 texCoord;
 
 void main()
 {
