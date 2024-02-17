@@ -5,9 +5,9 @@
 
 #define GLSL_VERSION	"#version 330 core"
 
-#define WIN_WIDTH	800
-#define WIN_HEIGHT	600
-#define WIN_TITLE	"Screensaver GL"
+#define WIN_WIDTH		800
+#define WIN_HEIGHT		600
+#define WIN_TITLE		"Screensaver GL"
 
 struct 
 {
@@ -45,18 +45,20 @@ public:
 	}
 } GLBuffer;
 
-struct Triangle 
+struct 
 {
 private:
-	unsigned int id, bufferID;
-	float verts[24];
+	unsigned int programId, bufferID;
+	GLuint texture;
+	float verts[32];
+	int indices[6];
 
 public:
-	Triangle(int id, ImVec4 pts[3], ImVec4 col[3], ImVec4 tex[3])
+	void create(int id, ImVec4 pts[4], ImVec4 col[4], ImVec4 tex[4], int ind[])
 	{
 		this->bufferID = id;
 
-		for (int i = 0; i < 3; i++)
+		for (int i = 0; i < 4; i++)
 		{
 			// Row
 			int r = (i * 8);
@@ -75,6 +77,9 @@ public:
 			verts[r + 6] = tex[i].x;
 			verts[r + 7] = tex[i].y;
 		}
+
+		for (int i = 0; i < (sizeof(this->indices) / sizeof(int)); i++)
+			this->indices[i] = ind[i];
 	}
 
 	bool createShader(String vertFile, String fragFile)
@@ -138,15 +143,15 @@ public:
 			return false;
 		}
 
-		this->id = glCreateProgram();
-		glAttachShader(this->id, vertex);
-		glAttachShader(this->id, fragment);
-		glLinkProgram(this->id);
+		this->programId = glCreateProgram();
+		glAttachShader(this->programId, vertex);
+		glAttachShader(this->programId, fragment);
+		glLinkProgram(this->programId);
 
-		glGetProgramiv(this->id, GL_LINK_STATUS, &success);
+		glGetProgramiv(this->programId, GL_LINK_STATUS, &success);
 		if (!success)
 		{
-			glGetProgramInfoLog(this->id, 512, NULL, infoLog);
+			glGetProgramInfoLog(this->programId, 512, NULL, infoLog);
 			printf("Program link failed\n%s\n", infoLog);
 			return false;
 		}
@@ -160,8 +165,12 @@ public:
 	void createBufferData()
 	{
 		glBindVertexArray(GLBuffer.getVAO(this->bufferID));
+
 		glBindBuffer(GL_ARRAY_BUFFER, GLBuffer.getVBO(this->bufferID));
-		glBufferData(GL_ARRAY_BUFFER, sizeof(this->verts), this->verts, GL_STATIC_DRAW);
+		glBufferData(GL_ARRAY_BUFFER, sizeof(this->verts), this->verts, GL_DYNAMIC_DRAW);
+
+		glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, GLBuffer.getEBO(this->bufferID));
+		glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(this->indices), this->indices, GL_DYNAMIC_DRAW);
 
 		glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 8 * sizeof(float), (GLvoid *)0);
 		glEnableVertexAttribArray(0);
@@ -175,7 +184,7 @@ public:
 
 	void use()
 	{
-		glUseProgram(this->id);
+		glUseProgram(this->programId);
 	}
 
 	void draw()
@@ -183,19 +192,24 @@ public:
 		this->use();
 
 		glBindVertexArray(GLBuffer.getVAO(this->bufferID));
-		glDrawArrays(GL_TRIANGLES, 0, 3);
+		glDrawElements(GL_TRIANGLES, sizeof(this->indices) / sizeof(int), GL_UNSIGNED_INT, 0);
 	}
 
-	GLuint getID()
+	GLuint getProgramID()
 	{
-		return (GLuint)this->id;
+		return this->programId;
 	}
 
 	GLuint getBufferID()
 	{
-		return (GLuint)this->bufferID;
+		return this->bufferID;
 	}
-};
+} Box;
+
+struct
+{
+	bool showDemoWindow = false;
+} ScreenSaverGLWindow;
 
 void frameBufferCallback(GLFWwindow *window, int width, int height)
 {
@@ -239,31 +253,39 @@ int main()
 	ImGui_ImplOpenGL3_Init(GLSL_VERSION);
 	// OpenGL init
 
-	// Create shaders
-	ImVec4 t1Pos[] = {
-		ImVec4(0.0f, 0.5f, 0.0f, 0.0f),
-		ImVec4(0.5f, -0.5f, 0.0f, 0.0f),
-		ImVec4(-0.5f, -0.5f, 0.0f, 0.0f)
+	// Create box
+	ImVec4 boxPos[] = {
+		ImVec4(-0.5f,  0.5f, 0.0f, 0.0f),	// Top-left
+		ImVec4( 0.5f,  0.5f, 0.0f, 0.0f),	// Top-right
+		ImVec4( 0.5f, -0.5f, 0.0f, 0.0f),	// Bottom-right
+		ImVec4(-0.5f, -0.5f, 0.0f, 0.0f)	// Bottom-left
 	};
 
-	ImVec4 t1Col[] = {
+	ImVec4 boxColor[] = {
 		ImVec4(1.0f, 0.0f, 0.0f, 0.0f),
 		ImVec4(0.0f, 1.0f, 0.0f, 0.0f),
-		ImVec4(0.0f, 0.0f, 1.0f, 0.0f)
+		ImVec4(0.0f, 0.0f, 1.0f, 0.0f),
+		ImVec4(0.0f, 1.0f, 0.0f, 0.0f)
 	};
 
-	ImVec4 t1TexCoord[] = {
-		ImVec4(0.0f, 0.5f, 0.0f, 0.0f),
-		ImVec4(0.5f, -0.5f, 0.0f, 0.0f),
-		ImVec4(-0.5f, -0.5f, 0.0f, 0.0f)
+	ImVec4 boxTexCoords[] = {
+		ImVec4(0.0f, 1.0f, 0.0f, 0.0f),		// Top-left
+		ImVec4(1.0f, 1.0f, 0.0f, 0.0f),		// Top-right
+		ImVec4(1.0f, 0.0f, 0.0f, 0.0f),		// Bottom-right
+		ImVec4(0.0f, 0.0f, 0.0f, 0.0f)		// Bottom-left
 	};
 
-	Triangle t1(GLBuffer.createID(), t1Pos, t1Col, t1TexCoord);
-	t1.createShader("T1_Shader.vert", "T1_Shader.frag");
-	// Create shaders
+	int boxIndices[] = {
+		0, 2, 3,
+		0, 1, 2
+	};
+
+	Box.create(GLBuffer.createID(), boxPos, boxColor, boxTexCoords, boxIndices);
+	Box.createShader("T1_Shader.vert", "T1_Shader.frag");
+	// Create box
 
 	GLBuffer.init();
-	t1.createBufferData();
+	Box.createBufferData();
 
 	while (!glfwWindowShouldClose(window))
 	{
@@ -274,7 +296,29 @@ int main()
 		ImGui_ImplGlfw_NewFrame();
 		ImGui::NewFrame();
 
-		t1.draw();
+		if (ImGui::BeginMainMenuBar())
+		{
+			if (ImGui::BeginMenu("File"))
+			{
+				if (ImGui::MenuItem("Exit"))
+					break;
+
+				ImGui::EndMenu();
+			}
+
+			if (ImGui::BeginMenu("Help"))
+			{
+				ImGui::MenuItem("Demo window", NULL, &ScreenSaverGLWindow.showDemoWindow);
+
+				ImGui::EndMenu();
+			}
+			ImGui::EndMainMenuBar();
+		}
+
+		if (ScreenSaverGLWindow.showDemoWindow)
+			ImGui::ShowDemoWindow();
+
+		Box.draw();
 
 		ImGui::Render();
 		ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());

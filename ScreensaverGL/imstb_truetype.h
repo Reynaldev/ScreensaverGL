@@ -548,7 +548,7 @@ STBTT_DEF int stbtt_BakeFontBitmap(const unsigned char *data, int offset,  // fo
 typedef struct
 {
    float x0,y0,s0,t0; // top-left
-   float x1,y1,s1,t1; // bottom-right
+   float x1,y1,s1,Box; // bottom-right
 } stbtt_aligned_quad;
 
 STBTT_DEF void stbtt_GetBakedQuad(const stbtt_bakedchar *chardata, int pw, int ph,  // same data as above
@@ -3880,7 +3880,7 @@ STBTT_DEF void stbtt_GetBakedQuad(const stbtt_bakedchar *chardata, int pw, int p
    q->s0 = b->x0 * ipw;
    q->t0 = b->y0 * iph;
    q->s1 = b->x1 * ipw;
-   q->t1 = b->y1 * iph;
+   q->Box = b->y1 * iph;
 
    *xpos += b->xadvance;
 }
@@ -4390,7 +4390,7 @@ STBTT_DEF void stbtt_GetPackedQuad(const stbtt_packedchar *chardata, int pw, int
    q->s0 = b->x0 * ipw;
    q->t0 = b->y0 * iph;
    q->s1 = b->x1 * ipw;
-   q->t1 = b->y1 * iph;
+   q->Box = b->y1 * iph;
 
    *xpos += b->xadvance;
 }
