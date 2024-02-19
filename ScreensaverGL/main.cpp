@@ -8,10 +8,6 @@
 
 #define GLSL_VERSION	"#version 330 core"
 
-#define WIN_WIDTH		800
-#define WIN_HEIGHT		600
-#define WIN_TITLE		"Screensaver GL"
-
 struct 
 {
 private:
@@ -51,42 +47,38 @@ public:
 struct 
 {
 private:
+	const static int vertSize = 20;
+
 	// Box properties
 	unsigned int programId, bufferID;
-	float verts[32];
-	int indices[6];
+	float verts[vertSize];
+	int indices[6] = {
+		0, 2, 3,
+		0, 1, 2
+	};
 
 	// Texture properties
 	GLuint texture = 0;
 	int txWidth, txHeight, txChannels;
 
 public:
-	void create(int id, ImVec4 pts[4], ImVec4 col[4], ImVec4 tex[4], int ind[6])
+	ImVec4 color = ImVec4(1.0f, 1.0f, 1.0f, 1.0f);
+
+	void create(int id, float size, ImVec4 color)
 	{
 		this->bufferID = id;
+		this->color = color;
 
-		for (int i = 0; i < 4; i++)
-		{
-			// Row
-			int r = (i * 8);
+		float newVerts[vertSize] = {
+			// Pos				// Texture coordinate
+			-size,  size, 0.0f,	0.0f, 1.0f,
+			 size,  size, 0.0f,	1.0f, 1.0f,
+			 size, -size, 0.0f,	1.0f, 0.0f,
+			-size, -size, 0.0f,	0.0f, 0.0f
+		};
 
-			// Points position
-			verts[r + 0] = pts[i].x;
-			verts[r + 1] = pts[i].y;
-			verts[r + 2] = pts[i].z;
-
-			// Colors
-			verts[r + 3] = col[i].x;
-			verts[r + 4] = col[i].y;
-			verts[r + 5] = col[i].z;
-
-			// Texture coordinates
-			verts[r + 6] = tex[i].x;
-			verts[r + 7] = tex[i].y;
-		}
-
-		for (int i = 0; i < (sizeof(this->indices) / sizeof(int)); i++)
-			this->indices[i] = ind[i];
+		for (int i = 0; i < vertSize; i++)
+			verts[i] = newVerts[i];
 	}
 
 	void createShader(const char *vertFile, const char *fragFile)
@@ -177,14 +169,11 @@ public:
 		glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, GLBuffer.getEBO(this->bufferID));
 		glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(this->indices), this->indices, GL_DYNAMIC_DRAW);
 
-		glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 8 * sizeof(float), (GLvoid *)0);
+		glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (GLvoid *)0);
 		glEnableVertexAttribArray(0);
 
-		glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 8 * sizeof(float), (GLvoid *)(3 * sizeof(float)));
+		glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (GLvoid *)(3 * sizeof(float)));
 		glEnableVertexAttribArray(1);
-		
-		glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, 8 * sizeof(float), (GLvoid *)(6 * sizeof(float)));
-		glEnableVertexAttribArray(2);
 	}
 
 	void createTexture(const char *txFile, GLint wrapS, GLint wrapT, GLint filterMin, GLint filterMag, GLenum fmt = GL_RGB)
@@ -246,7 +235,38 @@ public:
 
 struct
 {
-	bool showDemoWindow = false;
+	int width = 800, height = 600;
+	const char *title = "ScreenSaver GL";
+
+	ImVec4 backgroundColor = ImVec4(0.1f, 0.2f, 0.3f, 1.0f);
+
+	bool showDemoWindow	= false;
+	bool showAppOptions	= false;
+	bool showBoxConfig	= false;
+
+	void windowAppOptions()
+	{
+		ImGui::SetNextWindowSize(ImVec2(400, 800));
+		ImGui::Begin("Options", &showAppOptions);
+
+		ImGui::SeparatorText("Window");
+
+		ImGui::ColorPicker4("Background Color", (float *)&backgroundColor);
+
+		ImGui::End();
+	}
+
+	void windowBoxConfig()
+	{
+		ImGui::SetNextWindowSize(ImVec2(400, 800));
+		ImGui::Begin("Box Config", &showBoxConfig);
+
+		ImGui::SeparatorText("Graphics");
+
+		ImGui::ColorPicker4("Box Color", (float *)&Box.color);
+
+		ImGui::End();
+	}
 } ScreenSaverGLWindow;
 
 void frameBufferCallback(GLFWwindow *window, int width, int height)
@@ -262,7 +282,8 @@ int main()
 	glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, GLFW_VERSION_MINOR);
 	glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
 
-	GLFWwindow *window = glfwCreateWindow(WIN_WIDTH, WIN_HEIGHT, WIN_TITLE, NULL, NULL);
+	GLFWwindow *window = glfwCreateWindow(ScreenSaverGLWindow.width, ScreenSaverGLWindow.height, 
+		ScreenSaverGLWindow.title, NULL, NULL);
 	if (!window)
 	{
 		printf("Cannot create Window for GLFW!\n");
@@ -278,7 +299,7 @@ int main()
 		return -1;
 	}
 
-	glViewport(0, 0, WIN_WIDTH, WIN_HEIGHT);
+	glViewport(0, 0, ScreenSaverGLWindow.width, ScreenSaverGLWindow.height);
 	glfwSetFramebufferSizeCallback(window, frameBufferCallback);
 
 	IMGUI_CHECKVERSION();
@@ -292,33 +313,7 @@ int main()
 	// OpenGL init
 
 	// Create box
-	ImVec4 boxPos[] = {
-		ImVec4(-0.25f,  0.25f, 0.0f, 0.0f),	// Top-left
-		ImVec4( 0.25f,  0.25f, 0.0f, 0.0f),	// Top-right
-		ImVec4( 0.25f, -0.25f, 0.0f, 0.0f),	// Bottom-right
-		ImVec4(-0.25f, -0.25f, 0.0f, 0.0f)	// Bottom-left
-	};
-
-	ImVec4 boxColor[] = {
-		ImVec4(1.0f, 0.0f, 0.0f, 0.0f),
-		ImVec4(0.0f, 1.0f, 0.0f, 0.0f),
-		ImVec4(0.0f, 0.0f, 1.0f, 0.0f),
-		ImVec4(0.0f, 1.0f, 0.0f, 0.0f)
-	};
-
-	ImVec4 boxTexCoords[] = {
-		ImVec4(0.0f, 1.0f, 0.0f, 0.0f),		// Top-left
-		ImVec4(1.0f, 1.0f, 0.0f, 0.0f),		// Top-right
-		ImVec4(1.0f, 0.0f, 0.0f, 0.0f),		// Bottom-right
-		ImVec4(0.0f, 0.0f, 0.0f, 0.0f)		// Bottom-left
-	};
-
-	int boxIndices[] = {
-		0, 2, 3,
-		0, 1, 2
-	};
-
-	Box.create(GLBuffer.createID(), boxPos, boxColor, boxTexCoords, boxIndices);
+	Box.create(GLBuffer.createID(), 0.25f, ImVec4(1.0f, 1.0f, 1.0f, 1.0f));
 	Box.createShader("T1_Shader.vert", "T1_Shader.frag");
 	Box.createTexture("dalle.png", GL_REPEAT, GL_REPEAT, GL_NEAREST_MIPMAP_NEAREST, GL_NEAREST, GL_RGB);
 	// Create box
@@ -328,7 +323,12 @@ int main()
 
 	while (!glfwWindowShouldClose(window))
 	{
-		glClearColor(0.1f, 0.2f, 0.3f, 1.0f);
+		glClearColor(
+			ScreenSaverGLWindow.backgroundColor.x,
+			ScreenSaverGLWindow.backgroundColor.y,
+			ScreenSaverGLWindow.backgroundColor.z,
+			ScreenSaverGLWindow.backgroundColor.w
+		);
 		glClear(GL_COLOR_BUFFER_BIT);
 
 		ImGui_ImplOpenGL3_NewFrame();
@@ -339,16 +339,28 @@ int main()
 		{
 			if (ImGui::BeginMenu("File"))
 			{
+				ImGui::MenuItem("Options", NULL, &ScreenSaverGLWindow.showAppOptions);
+
+				ImGui::Separator();
+
 				if (ImGui::MenuItem("Exit"))
 					break;
 
 				ImGui::EndMenu();
 			}
 
+			if (ImGui::BeginMenu("Tools"))
+			{
+				ImGui::MenuItem("Config", NULL, &ScreenSaverGLWindow.showBoxConfig);
+
+				ImGui::EndMenu();
+			}
+
 			if (ImGui::BeginMenu("Help"))
 			{
+#ifdef _DEBUG
 				ImGui::MenuItem("Demo window", NULL, &ScreenSaverGLWindow.showDemoWindow);
-
+#endif // _DEBUG
 				ImGui::EndMenu();
 			}
 
@@ -356,9 +368,18 @@ int main()
 		}
 
 		if (ScreenSaverGLWindow.showDemoWindow)
-			ImGui::ShowDemoWindow();
+			ImGui::ShowDemoWindow(&ScreenSaverGLWindow.showDemoWindow);
+
+		if (ScreenSaverGLWindow.showAppOptions)
+			ScreenSaverGLWindow.windowAppOptions();
+
+		if (ScreenSaverGLWindow.showBoxConfig)
+			ScreenSaverGLWindow.windowBoxConfig();
 
 		Box.draw();
+
+		Box.use();
+		glUniform3f(glGetUniformLocation(Box.getProgramID(), "uColor"), Box.color.x, Box.color.y, Box.color.z);
 
 		ImGui::Render();
 		ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
