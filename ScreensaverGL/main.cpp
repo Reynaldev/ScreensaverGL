@@ -1,12 +1,34 @@
-#include "main.h"
-
+#include <iostream>
+#include <cmath>
+#include <thread>
 #include <fstream>
 #include <sstream>
+#include <vector>
+
+#include <glad/glad.h>
+#include <GLFW/glfw3.h>
+
+#include "imgui.h"
+#include "imgui_impl_glfw.h"
+#include "imgui_impl_opengl3.h"
 
 #define STB_IMAGE_IMPLEMENTATION
 #include <stb_image.h>
 
+#include <Windows.h>
+#include <ShObjIdl.h>
+
 #define GLSL_VERSION	"#version 330 core"
+
+typedef std::string String;
+
+void windowTextureModalChange(String f);
+void frameBufferCallback(GLFWwindow *window, int width, int height);
+
+String showOpenFileDialog();
+
+std::vector<std::thread> tList;
+
 
 struct 
 {
@@ -231,22 +253,39 @@ public:
 	{
 		return this->bufferID;
 	}
+
+	GLuint getTexture()
+	{
+		return this->texture;
+	}
+
+	int getTextureWidth()
+	{
+		return this->txWidth;
+	}
+
+	int getTextureHeight()
+	{
+		return this->txHeight;
+	}
 } Box;
 
 struct
 {
-	int width = 800, height = 600;
-	const char *title = "ScreenSaver GL";
-
 	ImVec4 backgroundColor = ImVec4(0.1f, 0.2f, 0.3f, 1.0f);
 
-	bool showDemoWindow	= false;
-	bool showAppOptions	= false;
-	bool showBoxConfig	= false;
+	int width = 1280, height = 720;
+	const char *title = "ScreenSaver GL";
+
+	bool showDemoWindow			= false;
+	bool showAppOptions			= false;
+	bool showBoxConfig			= false;
+	bool showTextureModalChange	= false;
+
+	String filePath;
 
 	void windowAppOptions()
 	{
-		ImGui::SetNextWindowSize(ImVec2(400, 800));
 		ImGui::Begin("Options", &showAppOptions);
 
 		ImGui::SeparatorText("Window");
@@ -258,16 +297,97 @@ struct
 
 	void windowBoxConfig()
 	{
-		ImGui::SetNextWindowSize(ImVec2(400, 800));
 		ImGui::Begin("Box Config", &showBoxConfig);
 
-		ImGui::SeparatorText("Graphics");
+		if (ImGui::CollapsingHeader("Graphics"))
+		{
+			ImGui::SeparatorText("Color");
 
-		ImGui::ColorPicker4("Box Color", (float *)&Box.color);
+			static ImGuiColorEditFlags colorPickerFlag;
+			colorPickerFlag |= ImGuiColorEditFlags_NoLabel;
+			colorPickerFlag |= ImGuiColorEditFlags_AlphaPreview;
+			colorPickerFlag |= ImGuiColorEditFlags_NoSidePreview;
+			colorPickerFlag |= ImGuiColorEditFlags_NoSmallPreview;
+
+			ImGui::ColorPicker4("Box Color", (float *)&Box.color, colorPickerFlag);
+
+			ImGui::SeparatorText("Texture");
+
+			ImGui::Image((ImTextureID)Box.getTexture(), ImVec2(64, 64), ImVec2(0.0f, 1.0f), ImVec2(1.0f, 0.0f));
+			ImGui::SameLine();
+
+			if (ImGui::Button("Change"))
+			{
+				//ImGui::SetItemTooltip("Change the texture");
+				filePath = showOpenFileDialog();
+
+				if (!filePath.empty())
+					showTextureModalChange = true;
+			}
+		}
+
+		ImGui::End();
+	}
+
+	void windowTextureModalChange()
+	{
+		ImGui::Begin("Change texture", &ScreenSaverGLWindow.showTextureModalChange);
+
+		ImGui::Text("Path:%s", filePath.c_str());
 
 		ImGui::End();
 	}
 } ScreenSaverGLWindow;
+
+String showOpenFileDialog()
+{
+	String output;
+
+	HRESULT hr = CoInitializeEx(NULL, COINIT_APARTMENTTHREADED | COINIT_DISABLE_OLE1DDE);
+	if (SUCCEEDED(hr))
+	{
+		IFileOpenDialog *fileOpenDialog;
+
+		// Create the FileOpenDialog
+		hr = CoCreateInstance(CLSID_FileOpenDialog, NULL, CLSCTX_ALL, 
+			IID_IFileOpenDialog, reinterpret_cast<void **>(&fileOpenDialog));
+		if (SUCCEEDED(hr))
+		{
+			// Show the Open File Dialog
+			hr = fileOpenDialog->Show(NULL);
+
+			// Get the file name from the dialog box
+			if (SUCCEEDED(hr))
+			{
+				IShellItem *shItem;
+
+				hr = fileOpenDialog->GetResult(&shItem);
+				if (SUCCEEDED(hr))
+				{
+					PWSTR filePath;
+					hr = shItem->GetDisplayName(SIGDN_FILESYSPATH, &filePath);
+
+					// Display the file name to the user
+					if (SUCCEEDED(hr))
+					{
+						std::wstring wFilePath(filePath);
+						output = String(wFilePath.begin(), wFilePath.end());
+
+						CoTaskMemFree(filePath);
+					}
+
+					shItem->Release();
+				}
+			}
+
+			fileOpenDialog->Release();
+		}
+
+		CoUninitialize();
+	}
+
+	return output;
+}
 
 void frameBufferCallback(GLFWwindow *window, int width, int height)
 {
@@ -313,7 +433,7 @@ int main()
 	// OpenGL init
 
 	// Create box
-	Box.create(GLBuffer.createID(), 0.25f, ImVec4(1.0f, 1.0f, 1.0f, 1.0f));
+	Box.create(GLBuffer.createID(), 0.2f, ImVec4(1.0f, 1.0f, 1.0f, 1.0f));
 	Box.createShader("T1_Shader.vert", "T1_Shader.frag");
 	Box.createTexture("dalle.png", GL_REPEAT, GL_REPEAT, GL_NEAREST_MIPMAP_NEAREST, GL_NEAREST, GL_RGB);
 	// Create box
@@ -375,6 +495,9 @@ int main()
 
 		if (ScreenSaverGLWindow.showBoxConfig)
 			ScreenSaverGLWindow.windowBoxConfig();
+
+		if (ScreenSaverGLWindow.showTextureModalChange)
+			ScreenSaverGLWindow.windowTextureModalChange();
 
 		Box.draw();
 
