@@ -331,11 +331,49 @@ struct
 
 	void windowTextureModalChange()
 	{
-		ImGui::Begin("Change texture", &ScreenSaverGLWindow.showTextureModalChange);
+		const char *modalName = "Change texture";
 
-		ImGui::Text("Path:%s", filePath.c_str());
+		ImGui::OpenPopup(modalName);
+		ImVec2 center = ImGui::GetMainViewport()->GetCenter();
+		ImGui::SetNextWindowPos(center, ImGuiCond_Appearing, ImVec2(0.5f, 0.5f));
+		if (ImGui::BeginPopupModal(modalName, NULL, ImGuiWindowFlags_AlwaysAutoResize))
+		{
+			//ImGui::Text("Path:%s", filePath.c_str());
+			GLuint wrapper[] = { GL_REPEAT, GL_MIRRORED_REPEAT, GL_CLAMP_TO_EDGE, GL_CLAMP_TO_BORDER };
+			GLuint filters[] = { GL_NEAREST, GL_LINEAR, GL_LINEAR_MIPMAP_LINEAR, GL_LINEAR_MIPMAP_NEAREST };
+			GLuint fmts[] = { GL_RGB, GL_RGBA };
 
-		ImGui::End();
+			static int wrapperCurrent = 0;
+			static int filterCurrent = 0;
+			static int formatCurrent = 0;
+
+			ImGui::Combo("Wrapper", &wrapperCurrent, "Repeat\0Mirrored-Repeat\0Clamp to edge\0Clamp to border");
+			ImGui::Combo("Filter", &filterCurrent, "Nearest\0Linear\0Linear - Mipmap Linear\0Linear - Mipmap Nearest");
+			ImGui::Combo("Format", &formatCurrent, "RGB\0RGBA");
+
+			if (ImGui::Button("OK", ImVec2(120, 0)))
+			{
+				Box.createTexture(
+					filePath.c_str(), 
+					wrapper[wrapperCurrent],
+					wrapper[wrapperCurrent],
+					filters[filterCurrent], 
+					filters[filterCurrent],
+					fmts[formatCurrent]);
+				showTextureModalChange = false;
+				filePath.clear();
+			}
+
+			ImGui::SameLine();
+
+			if (ImGui::Button("Cancel", ImVec2(120, 0)))
+			{
+				showTextureModalChange = false;
+				filePath.clear();
+			}
+
+			ImGui::EndPopup();
+		}
 	}
 } ScreenSaverGLWindow;
 
