@@ -22,13 +22,9 @@
 
 typedef std::string String;
 
-void windowTextureModalChange(String f);
 void frameBufferCallback(GLFWwindow *window, int width, int height);
 
 String showOpenFileDialog();
-
-std::vector<std::thread> tList;
-
 
 struct 
 {
@@ -220,9 +216,6 @@ public:
 		glTexImage2D(GL_TEXTURE_2D, 0, fmt, this->txWidth, this->txHeight, 0, fmt, GL_UNSIGNED_BYTE, data);
 		glGenerateMipmap(GL_TEXTURE_2D);
 
-		this->use();
-		glUniform1i(glGetUniformLocation(this->programId, "uUseTexture"), true);
-
 		stbi_image_free(data);
 	}
 
@@ -237,6 +230,8 @@ public:
 
 		if (this->texture != 0)
 		{
+			glUniform1i(glGetUniformLocation(this->programId, "uUseTexture"), true);
+
 			glBindTexture(GL_TEXTURE_2D, this->texture);
 		}
 
@@ -305,11 +300,13 @@ struct
 
 			static ImGuiColorEditFlags colorPickerFlag;
 			colorPickerFlag |= ImGuiColorEditFlags_NoLabel;
+			colorPickerFlag |= ImGuiColorEditFlags_AlphaBar;
 			colorPickerFlag |= ImGuiColorEditFlags_AlphaPreview;
 			colorPickerFlag |= ImGuiColorEditFlags_NoSidePreview;
 			colorPickerFlag |= ImGuiColorEditFlags_NoSmallPreview;
 
 			ImGui::ColorPicker4("Box Color", (float *)&Box.color, colorPickerFlag);
+
 
 			ImGui::SeparatorText("Texture");
 
@@ -329,7 +326,7 @@ struct
 		ImGui::End();
 	}
 
-	void windowTextureModalChange()
+	void modalTextureChange()
 	{
 		const char *modalName = "Change texture";
 
@@ -338,9 +335,8 @@ struct
 		ImGui::SetNextWindowPos(center, ImGuiCond_Appearing, ImVec2(0.5f, 0.5f));
 		if (ImGui::BeginPopupModal(modalName, NULL, ImGuiWindowFlags_AlwaysAutoResize))
 		{
-			//ImGui::Text("Path:%s", filePath.c_str());
 			GLuint wrapper[] = { GL_REPEAT, GL_MIRRORED_REPEAT, GL_CLAMP_TO_EDGE, GL_CLAMP_TO_BORDER };
-			GLuint filters[] = { GL_NEAREST, GL_LINEAR, GL_LINEAR_MIPMAP_LINEAR, GL_LINEAR_MIPMAP_NEAREST };
+			GLuint filters[] = { GL_NEAREST, GL_LINEAR, GL_LINEAR_MIPMAP_NEAREST, GL_LINEAR_MIPMAP_LINEAR };
 			GLuint fmts[] = { GL_RGB, GL_RGBA };
 
 			static int wrapperCurrent = 0;
@@ -348,7 +344,7 @@ struct
 			static int formatCurrent = 0;
 
 			ImGui::Combo("Wrapper", &wrapperCurrent, "Repeat\0Mirrored-Repeat\0Clamp to edge\0Clamp to border");
-			ImGui::Combo("Filter", &filterCurrent, "Nearest\0Linear\0Linear - Mipmap Linear\0Linear - Mipmap Nearest");
+			ImGui::Combo("Filter", &filterCurrent, "Nearest\0Linear\0Linear - Mipmap Nearest\0Linear - Mipmap Linear");
 			ImGui::Combo("Format", &formatCurrent, "RGB\0RGBA");
 
 			if (ImGui::Button("OK", ImVec2(120, 0)))
@@ -473,7 +469,7 @@ int main()
 	// Create box
 	Box.create(GLBuffer.createID(), 0.2f, ImVec4(1.0f, 1.0f, 1.0f, 1.0f));
 	Box.createShader("T1_Shader.vert", "T1_Shader.frag");
-	Box.createTexture("dalle.png", GL_REPEAT, GL_REPEAT, GL_NEAREST_MIPMAP_NEAREST, GL_NEAREST, GL_RGB);
+	//Box.createTexture("dalle.png", GL_REPEAT, GL_REPEAT, GL_NEAREST_MIPMAP_NEAREST, GL_NEAREST, GL_RGB);
 	// Create box
 
 	GLBuffer.init();
@@ -535,12 +531,12 @@ int main()
 			ScreenSaverGLWindow.windowBoxConfig();
 
 		if (ScreenSaverGLWindow.showTextureModalChange)
-			ScreenSaverGLWindow.windowTextureModalChange();
+			ScreenSaverGLWindow.modalTextureChange();
 
 		Box.draw();
 
 		Box.use();
-		glUniform3f(glGetUniformLocation(Box.getProgramID(), "uColor"), Box.color.x, Box.color.y, Box.color.z);
+		glUniform4f(glGetUniformLocation(Box.getProgramID(), "uColor"), Box.color.x, Box.color.y, Box.color.z, Box.color.w);
 
 		ImGui::Render();
 		ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
