@@ -219,6 +219,11 @@ public:
 		stbi_image_free(data);
 	}
 
+	void deleteTexture()
+	{
+		glDeleteTextures(1, &texture);
+	}
+
 	void use()
 	{
 		glUseProgram(this->programId);
@@ -276,6 +281,7 @@ struct
 	bool showAppOptions			= false;
 	bool showBoxConfig			= false;
 	bool showTextureModalChange	= false;
+	bool showTextureModalDelete = false;
 
 	String filePath;
 
@@ -313,60 +319,38 @@ struct
 			ImGui::Image((ImTextureID)Box.getTexture(), ImVec2(64, 64), ImVec2(0.0f, 1.0f), ImVec2(1.0f, 0.0f));
 			ImGui::SameLine();
 
-			if (ImGui::Button("Change"))
+			ImGui::BeginGroup();
 			{
-				//ImGui::SetItemTooltip("Change the texture");
-				filePath = showOpenFileDialog();
+				if (ImGui::Button("Change"))
+				{
+					//ImGui::SetItemTooltip("Change the texture");
+					filePath = showOpenFileDialog();
 
-				if (!filePath.empty())
-					showTextureModalChange = true;
+					if (!filePath.empty())
+						showTextureModalChange = true;
+				}
+				ImGui::SetItemTooltip("Change the texture of the box");
+
+				if (ImGui::Button("Delete"))
+					showTextureModalDelete = true;
+
+				ImGui::SetItemTooltip("Delete the texture of the box");
+
 			}
+			ImGui::EndGroup();
 		}
 
 		ImGui::End();
 	}
 
-	void modalTextureChange()
+	void modal(const char *modalName, void (*modalUi)())
 	{
-		const char *modalName = "Change texture";
-
 		ImGui::OpenPopup(modalName);
 		ImVec2 center = ImGui::GetMainViewport()->GetCenter();
 		ImGui::SetNextWindowPos(center, ImGuiCond_Appearing, ImVec2(0.5f, 0.5f));
 		if (ImGui::BeginPopupModal(modalName, NULL, ImGuiWindowFlags_AlwaysAutoResize))
 		{
-			GLuint wrapper[] = { GL_REPEAT, GL_MIRRORED_REPEAT, GL_CLAMP_TO_EDGE, GL_CLAMP_TO_BORDER };
-			GLuint filters[] = { GL_NEAREST, GL_LINEAR, GL_LINEAR_MIPMAP_NEAREST, GL_LINEAR_MIPMAP_LINEAR };
-			GLuint fmts[] = { GL_RGB, GL_RGBA };
-
-			static int wrapperCurrent = 0;
-			static int filterCurrent = 0;
-			static int formatCurrent = 0;
-
-			ImGui::Combo("Wrapper", &wrapperCurrent, "Repeat\0Mirrored-Repeat\0Clamp to edge\0Clamp to border");
-			ImGui::Combo("Filter", &filterCurrent, "Nearest\0Linear\0Linear - Mipmap Nearest\0Linear - Mipmap Linear");
-			ImGui::Combo("Format", &formatCurrent, "RGB\0RGBA");
-
-			if (ImGui::Button("OK", ImVec2(120, 0)))
-			{
-				Box.createTexture(
-					filePath.c_str(), 
-					wrapper[wrapperCurrent],
-					wrapper[wrapperCurrent],
-					filters[filterCurrent], 
-					filters[filterCurrent],
-					fmts[formatCurrent]);
-				showTextureModalChange = false;
-				filePath.clear();
-			}
-
-			ImGui::SameLine();
-
-			if (ImGui::Button("Cancel", ImVec2(120, 0)))
-			{
-				showTextureModalChange = false;
-				filePath.clear();
-			}
+			modalUi();
 
 			ImGui::EndPopup();
 		}
@@ -531,7 +515,55 @@ int main()
 			ScreenSaverGLWindow.windowBoxConfig();
 
 		if (ScreenSaverGLWindow.showTextureModalChange)
-			ScreenSaverGLWindow.modalTextureChange();
+		{
+			ScreenSaverGLWindow.modal(
+				"Change texture",
+				[]() -> void {
+					GLuint wrapper[] = { GL_REPEAT, GL_MIRRORED_REPEAT, GL_CLAMP_TO_EDGE, GL_CLAMP_TO_BORDER };
+					GLuint filters[] = { GL_NEAREST, GL_LINEAR, GL_LINEAR_MIPMAP_NEAREST, GL_LINEAR_MIPMAP_LINEAR };
+					GLuint fmts[] = { GL_RGB, GL_RGBA };
+
+					static int wrapperCurrent = 0;
+					static int filterCurrent = 0;
+					static int formatCurrent = 0;
+
+					ImGui::Combo("Wrapper", &wrapperCurrent, "Repeat\0Mirrored-Repeat\0Clamp to edge\0Clamp to border");
+					ImGui::Combo("Filter", &filterCurrent, "Nearest\0Linear\0Linear - Mipmap Nearest\0Linear - Mipmap Linear");
+					ImGui::Combo("Format", &formatCurrent, "RGB\0RGBA");
+
+					if (ImGui::Button("OK", ImVec2(120, 0)))
+					{
+						Box.createTexture(
+							ScreenSaverGLWindow.filePath.c_str(),
+							wrapper[wrapperCurrent],
+							wrapper[wrapperCurrent],
+							filters[filterCurrent],
+							filters[filterCurrent],
+							fmts[formatCurrent]);
+						ScreenSaverGLWindow.showTextureModalChange = false;
+						ScreenSaverGLWindow.filePath.clear();
+					}
+
+					ImGui::SameLine();
+
+					if (ImGui::Button("Cancel", ImVec2(120, 0)))
+					{
+						ScreenSaverGLWindow.showTextureModalChange = false;
+						ScreenSaverGLWindow.filePath.clear();
+					}
+				}
+			);
+		}
+
+		if (ScreenSaverGLWindow.showTextureModalDelete)
+		{
+			ScreenSaverGLWindow.modal(
+				"Delete texture?",
+				[]() -> void {
+					ImGui::Text("This is a modal called within a callback function");
+				}
+			);
+		}
 
 		Box.draw();
 
