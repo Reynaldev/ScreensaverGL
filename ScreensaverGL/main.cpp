@@ -222,6 +222,10 @@ public:
 	void deleteTexture()
 	{
 		glDeleteTextures(1, &texture);
+
+		glUniform1i(glGetUniformLocation(this->programId, "uUseTexture"), false);
+
+		texture = NULL;
 	}
 
 	void use()
@@ -233,7 +237,7 @@ public:
 	{
 		this->use();
 
-		if (this->texture != 0)
+		if (hasTexture())
 		{
 			glUniform1i(glGetUniformLocation(this->programId, "uUseTexture"), true);
 
@@ -267,6 +271,11 @@ public:
 	int getTextureHeight()
 	{
 		return this->txHeight;
+	}
+
+	bool hasTexture()
+	{
+		return (texture != 0) ? true : false;
 	}
 } Box;
 
@@ -316,12 +325,15 @@ struct
 
 			ImGui::SeparatorText("Texture");
 
-			ImGui::Image((ImTextureID)Box.getTexture(), ImVec2(64, 64), ImVec2(0.0f, 1.0f), ImVec2(1.0f, 0.0f));
-			ImGui::SameLine();
+			if (Box.hasTexture())
+			{
+				ImGui::Image((ImTextureID)Box.getTexture(), ImVec2(64, 64), ImVec2(0.0f, 1.0f), ImVec2(1.0f, 0.0f));
+				ImGui::SameLine();
+			}
 
 			ImGui::BeginGroup();
 			{
-				if (ImGui::Button("Change"))
+				if (ImGui::Button((Box.hasTexture()) ? "Change" : "Add"))
 				{
 					//ImGui::SetItemTooltip("Change the texture");
 					filePath = showOpenFileDialog();
@@ -329,13 +341,15 @@ struct
 					if (!filePath.empty())
 						showTextureModalChange = true;
 				}
-				ImGui::SetItemTooltip("Change the texture of the box");
+				ImGui::SetItemTooltip("Add/Change the texture of the box");
 
-				if (ImGui::Button("Delete"))
-					showTextureModalDelete = true;
+				if (Box.hasTexture())
+				{
+					if (ImGui::Button("Delete"))
+						showTextureModalDelete = true;
 
-				ImGui::SetItemTooltip("Delete the texture of the box");
-
+					ImGui::SetItemTooltip("Delete the texture of the box");
+				}
 			}
 			ImGui::EndGroup();
 		}
@@ -560,7 +574,20 @@ int main()
 			ScreenSaverGLWindow.modal(
 				"Delete texture?",
 				[]() -> void {
-					ImGui::Text("This is a modal called within a callback function");
+					ImGui::Text("Do you want to delete the texture?");
+
+					if (ImGui::Button("OK", ImVec2(120, 0)))
+					{
+						Box.deleteTexture();
+						ScreenSaverGLWindow.showTextureModalDelete = false;
+					}
+
+					ImGui::SameLine();
+
+					if (ImGui::Button("Cancel", ImVec2(120, 0)))
+					{
+						ScreenSaverGLWindow.showTextureModalDelete = false;
+					}
 				}
 			);
 		}
