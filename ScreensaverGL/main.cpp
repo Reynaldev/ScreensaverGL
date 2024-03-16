@@ -29,51 +29,19 @@ String showOpenFileDialog();
 struct 
 {
 private:
-	GLuint VAO[2], VBO[2], EBO[2];
-	unsigned int id = 0;
+	static constexpr int VERT_LENGTH = 20;
 
-public:
-	void init()
-	{
-		glGenBuffers(2, VBO);
-		glGenVertexArrays(2, VAO);
-		glGenBuffers(2, EBO);
-	}
-
-	int createID()
-	{
-		int retId = this->id++;
-		return retId;
-	}
-
-	GLuint getVAO(GLuint id)
-	{
-		return this->VAO[id];
-	}
-
-	GLuint getVBO(GLuint id)
-	{
-		return this->VBO[id];
-	}
-
-	GLuint getEBO(GLuint id)
-	{
-		return this->EBO[id];
-	}
-} GLBuffer;
-
-struct 
-{
-private:
-	const static int vertSize = 20;
-
-	// Box properties
-	unsigned int programId, bufferID;
-	float verts[vertSize];
+	float verts[VERT_LENGTH];
 	int indices[6] = {
 		0, 2, 3,
 		0, 1, 2
 	};
+
+	// Buffers
+	GLuint VAO, VBO, EBO;
+
+	// Box properties
+	GLuint programId;
 
 	// Texture properties
 	GLuint texture = 0;
@@ -82,12 +50,11 @@ private:
 public:
 	ImVec4 color = ImVec4(1.0f, 1.0f, 1.0f, 1.0f);
 
-	void create(int id, float size, ImVec4 color)
+	void create(float size, ImVec4 color)
 	{
-		this->bufferID = id;
 		this->color = color;
 
-		float newVerts[vertSize] = {
+		float newVerts[VERT_LENGTH] = {
 			// Pos				// Texture coordinate
 			-size,  size, 0.0f,	0.0f, 1.0f,
 			 size,  size, 0.0f,	1.0f, 1.0f,
@@ -95,8 +62,12 @@ public:
 			-size, -size, 0.0f,	0.0f, 0.0f
 		};
 
-		for (int i = 0; i < vertSize; i++)
+		for (int i = 0; i < VERT_LENGTH; i++)
 			verts[i] = newVerts[i];
+
+		glGenBuffers(1, &VBO);
+		glGenVertexArrays(1, &VAO);
+		glGenBuffers(1, &EBO);
 	}
 
 	void createShader(const char *vertFile, const char *fragFile)
@@ -179,12 +150,12 @@ public:
 
 	void createBufferData()
 	{
-		glBindVertexArray(GLBuffer.getVAO(this->bufferID));
+		glBindVertexArray(VAO);
 
-		glBindBuffer(GL_ARRAY_BUFFER, GLBuffer.getVBO(this->bufferID));
+		glBindBuffer(GL_ARRAY_BUFFER, VBO);
 		glBufferData(GL_ARRAY_BUFFER, sizeof(this->verts), this->verts, GL_DYNAMIC_DRAW);
 
-		glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, GLBuffer.getEBO(this->bufferID));
+		glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, EBO);
 		glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(this->indices), this->indices, GL_DYNAMIC_DRAW);
 
 		glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (GLvoid *)0);
@@ -244,18 +215,28 @@ public:
 			glBindTexture(GL_TEXTURE_2D, this->texture);
 		}
 
-		glBindVertexArray(GLBuffer.getVAO(this->bufferID));
+		glBindVertexArray(VAO);
 		glDrawElements(GL_TRIANGLES, sizeof(this->indices) / sizeof(int), GL_UNSIGNED_INT, 0);
+	}
+
+	GLuint getVAO(GLuint id)
+	{
+		return this->VAO;
+	}
+
+	GLuint getVBO(GLuint id)
+	{
+		return this->VBO;
+	}
+
+	GLuint getEBO(GLuint id)
+	{
+		return this->EBO;
 	}
 
 	GLuint getProgramID()
 	{
 		return this->programId;
-	}
-
-	GLuint getBufferID()
-	{
-		return this->bufferID;
 	}
 
 	GLuint getTexture()
@@ -369,7 +350,7 @@ struct
 			ImGui::EndPopup();
 		}
 	}
-} ScreenSaverGLWindow;
+} App;
 
 String showOpenFileDialog()
 {
@@ -434,8 +415,7 @@ int main()
 	glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, GLFW_VERSION_MINOR);
 	glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
 
-	GLFWwindow *window = glfwCreateWindow(ScreenSaverGLWindow.width, ScreenSaverGLWindow.height, 
-		ScreenSaverGLWindow.title, NULL, NULL);
+	GLFWwindow *window = glfwCreateWindow(App.width, App.height, App.title, NULL, NULL);
 	if (!window)
 	{
 		printf("Cannot create Window for GLFW!\n");
@@ -451,7 +431,7 @@ int main()
 		return -1;
 	}
 
-	glViewport(0, 0, ScreenSaverGLWindow.width, ScreenSaverGLWindow.height);
+	glViewport(0, 0, App.width, App.height);
 	glfwSetFramebufferSizeCallback(window, frameBufferCallback);
 
 	IMGUI_CHECKVERSION();
@@ -465,21 +445,18 @@ int main()
 	// OpenGL init
 
 	// Create box
-	Box.create(GLBuffer.createID(), 0.2f, ImVec4(1.0f, 1.0f, 1.0f, 1.0f));
+	Box.create(0.2f, ImVec4(1.0f, 1.0f, 1.0f, 1.0f));
 	Box.createShader("T1_Shader.vert", "T1_Shader.frag");
 	//Box.createTexture("dalle.png", GL_REPEAT, GL_REPEAT, GL_NEAREST_MIPMAP_NEAREST, GL_NEAREST, GL_RGB);
-	// Create box
-
-	GLBuffer.init();
 	Box.createBufferData();
 
 	while (!glfwWindowShouldClose(window))
 	{
 		glClearColor(
-			ScreenSaverGLWindow.backgroundColor.x,
-			ScreenSaverGLWindow.backgroundColor.y,
-			ScreenSaverGLWindow.backgroundColor.z,
-			ScreenSaverGLWindow.backgroundColor.w
+			App.backgroundColor.x,
+			App.backgroundColor.y,
+			App.backgroundColor.z,
+			App.backgroundColor.w
 		);
 		glClear(GL_COLOR_BUFFER_BIT);
 
@@ -491,7 +468,7 @@ int main()
 		{
 			if (ImGui::BeginMenu("File"))
 			{
-				ImGui::MenuItem("Options", NULL, &ScreenSaverGLWindow.showAppOptions);
+				ImGui::MenuItem("Options", NULL, &App.showAppOptions);
 
 				ImGui::Separator();
 
@@ -503,7 +480,7 @@ int main()
 
 			if (ImGui::BeginMenu("Tools"))
 			{
-				ImGui::MenuItem("Config", NULL, &ScreenSaverGLWindow.showBoxConfig);
+				ImGui::MenuItem("Config", NULL, &App.showBoxConfig);
 
 				ImGui::EndMenu();
 			}
@@ -511,7 +488,7 @@ int main()
 			if (ImGui::BeginMenu("Help"))
 			{
 #ifdef _DEBUG
-				ImGui::MenuItem("Demo window", NULL, &ScreenSaverGLWindow.showDemoWindow);
+				ImGui::MenuItem("Demo window", NULL, &App.showDemoWindow);
 #endif // _DEBUG
 				ImGui::EndMenu();
 			}
@@ -519,18 +496,26 @@ int main()
 			ImGui::EndMainMenuBar();
 		}
 
-		if (ScreenSaverGLWindow.showDemoWindow)
-			ImGui::ShowDemoWindow(&ScreenSaverGLWindow.showDemoWindow);
+		if (App.showDemoWindow)
+			ImGui::ShowDemoWindow(&App.showDemoWindow);
 
-		if (ScreenSaverGLWindow.showAppOptions)
-			ScreenSaverGLWindow.windowAppOptions();
-
-		if (ScreenSaverGLWindow.showBoxConfig)
-			ScreenSaverGLWindow.windowBoxConfig();
-
-		if (ScreenSaverGLWindow.showTextureModalChange)
+		if (App.showAppOptions)
 		{
-			ScreenSaverGLWindow.modal(
+			ImGui::Begin("Options", &App.showAppOptions);
+
+			ImGui::SeparatorText("Window");
+
+			ImGui::ColorPicker4("Background Color", (float *)&App.backgroundColor);
+
+			ImGui::End();
+		}
+
+		if (App.showBoxConfig)
+			App.windowBoxConfig();
+
+		if (App.showTextureModalChange)
+		{
+			App.modal(
 				"Change texture",
 				[]() -> void {
 					GLuint wrapper[] = { GL_REPEAT, GL_MIRRORED_REPEAT, GL_CLAMP_TO_EDGE, GL_CLAMP_TO_BORDER };
@@ -548,30 +533,30 @@ int main()
 					if (ImGui::Button("OK", ImVec2(120, 0)))
 					{
 						Box.createTexture(
-							ScreenSaverGLWindow.filePath.c_str(),
+							App.filePath.c_str(),
 							wrapper[wrapperCurrent],
 							wrapper[wrapperCurrent],
 							filters[filterCurrent],
 							filters[filterCurrent],
 							fmts[formatCurrent]);
-						ScreenSaverGLWindow.showTextureModalChange = false;
-						ScreenSaverGLWindow.filePath.clear();
+						App.showTextureModalChange = false;
+						App.filePath.clear();
 					}
 
 					ImGui::SameLine();
 
 					if (ImGui::Button("Cancel", ImVec2(120, 0)))
 					{
-						ScreenSaverGLWindow.showTextureModalChange = false;
-						ScreenSaverGLWindow.filePath.clear();
+						App.showTextureModalChange = false;
+						App.filePath.clear();
 					}
 				}
 			);
 		}
 
-		if (ScreenSaverGLWindow.showTextureModalDelete)
+		if (App.showTextureModalDelete)
 		{
-			ScreenSaverGLWindow.modal(
+			App.modal(
 				"Delete texture?",
 				[]() -> void {
 					ImGui::Text("Do you want to delete the texture?");
@@ -579,14 +564,14 @@ int main()
 					if (ImGui::Button("OK", ImVec2(120, 0)))
 					{
 						Box.deleteTexture();
-						ScreenSaverGLWindow.showTextureModalDelete = false;
+						App.showTextureModalDelete = false;
 					}
 
 					ImGui::SameLine();
 
 					if (ImGui::Button("Cancel", ImVec2(120, 0)))
 					{
-						ScreenSaverGLWindow.showTextureModalDelete = false;
+						App.showTextureModalDelete = false;
 					}
 				}
 			);
