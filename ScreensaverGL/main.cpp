@@ -279,7 +279,7 @@ struct Box : public Shader
 
 struct
 {
-	ImVec4 backgroundColor = ImVec4(0.1f, 0.2f, 0.3f, 1.0f);
+	ImVec4 backgroundColor = ImVec4(0.0f, 0.0f, 0.0f, 1.0f);
 
 	int width = 1280, height = 720;
 	const char *title = "ScreenSaver GL";
@@ -441,10 +441,10 @@ int main()
 			box.pos += glm::vec3(0.0f, 1.0f, 0.0f) * boxSpeed;
 
 		if (GLFW_PRESS == glfwGetKey(window, GLFW_KEY_DOWN))
-			box.pos -= glm::vec3(0.0f, 1.0f, 0.0f) * boxSpeed;
+			box.pos += glm::vec3(0.0f, -1.0f, 0.0f) * boxSpeed;
 
 		if (GLFW_PRESS == glfwGetKey(window, GLFW_KEY_LEFT))
-			box.pos -= glm::vec3(1.0f, 0.0f, 0.0f) * boxSpeed;
+			box.pos += glm::vec3(-1.0f, 0.0f, 0.0f) * boxSpeed;
 
 		if (GLFW_PRESS == glfwGetKey(window, GLFW_KEY_RIGHT))
 			box.pos += glm::vec3(1.0f, 0.0f, 0.0f) * boxSpeed;
@@ -465,7 +465,7 @@ int main()
 		{
 			if (ImGui::BeginMenu("File"))
 			{
-				ImGui::MenuItem("Options", NULL, &App.showAppOptions);
+				ImGui::MenuItem("Settings", NULL, &App.showAppOptions);
 
 				ImGui::Separator();
 
@@ -498,7 +498,7 @@ int main()
 
 		if (App.showAppOptions)
 		{
-			ImGui::Begin("Options", &App.showAppOptions);
+			ImGui::Begin("Settings", &App.showAppOptions);
 
 			ImGui::SeparatorText("Window");
 
@@ -553,6 +553,11 @@ int main()
 					}
 				}
 				ImGui::EndGroup();
+			}
+
+			if (ImGui::CollapsingHeader("Position"))
+			{
+				ImGui::Text("X:\t%.2f | Y:\t%.2f", box.pos.x, box.pos.y);
 			}
 
 			ImGui::End();
@@ -626,7 +631,32 @@ int main()
 		//App.proj = glm::ortho(0.0f, (float)App.width, 0.0f, (float)App.height, 0.1f, 100.0f);
 		//App.proj = glm::perspective(glm::radians(75.0f), (float)(App.width / App.height), 0.1f, 100.0f);
 
+		// Reset the box if it goes outside the frame
+		if (
+			box.pos.x >  1.0f ||
+			box.pos.x < -1.0f ||
+			box.pos.y >  1.0f ||
+			box.pos.y < -1.0f
+		) {
+			box.pos = glm::vec3(0.0f);
+		}
+
 		// Draw box
+		static glm::vec3 direction(0.5f, 0.5f, 0.0f);
+
+		if (box.pos.x > 0.8f)
+			direction.x *= -1.0f;
+
+		if (box.pos.x < -0.8f)
+			direction.x *= -1.0f;
+
+		if (box.pos.y > 0.75f)
+			direction.y *= -1.0f;
+
+		if (box.pos.y < -0.8f)
+			direction.y *= -1.0f;
+
+		box.pos += direction * boxSpeed;
 		box.model = glm::translate(box.model, box.pos);
 
 		box.draw();
