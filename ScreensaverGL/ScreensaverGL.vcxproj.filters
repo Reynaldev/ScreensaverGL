@@ -57,9 +57,6 @@
     <ClCompile Include="glad.c">
       <Filter>Libs\OpenGL</Filter>
     </ClCompile>
-    <ClCompile Include="object.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="imconfig.h">
@@ -88,9 +85,6 @@
     </ClInclude>
     <ClInclude Include="imstb_truetype.h">
       <Filter>Libs\ImGui</Filter>
-    </ClInclude>
-    <ClInclude Include="object.h">
-      <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="main.h">
       <Filter>Header Files</Filter>

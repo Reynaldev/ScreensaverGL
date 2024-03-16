@@ -26,7 +26,7 @@ void frameBufferCallback(GLFWwindow *window, int width, int height);
 
 String showOpenFileDialog();
 
-struct 
+struct Shader
 {
 private:
 	static constexpr int VERT_LENGTH = 20;
@@ -258,7 +258,17 @@ public:
 	{
 		return (texture != 0) ? true : false;
 	}
-} Box;
+};
+
+struct Box : public Shader
+{
+	Box(const char *vf, const char *ff, float size, ImVec4 color)
+	{
+		create(size, color);
+		createShader(vf, ff);
+		createBufferData();
+	}
+};
 
 struct
 {
@@ -275,70 +285,31 @@ struct
 
 	String filePath;
 
-	void windowAppOptions()
+	// Modal
+	String modalName;
+
+	// Create a modal, use showModal() to start showing the modal and endModal() to en the modal.
+	void beginModal(const char *name)
 	{
-		ImGui::Begin("Options", &showAppOptions);
+		this->modalName = name;
 
-		ImGui::SeparatorText("Window");
-
-		ImGui::ColorPicker4("Background Color", (float *)&backgroundColor);
-
-		ImGui::End();
+		ImGui::OpenPopup(modalName.c_str());
+		ImVec2 center = ImGui::GetMainViewport()->GetCenter();
+		ImGui::SetNextWindowPos(center, ImGuiCond_Appearing, ImVec2(0.5f, 0.5f));
 	}
 
-	void windowBoxConfig()
+	// Call beginModal() before using this function.
+	bool showModal() { return ImGui::BeginPopupModal(modalName.c_str(), NULL, ImGuiWindowFlags_AlwaysAutoResize); }
+
+	// A function to end the already created modal.
+	void endModal()
 	{
-		ImGui::Begin("Box Config", &showBoxConfig);
-
-		if (ImGui::CollapsingHeader("Graphics"))
-		{
-			ImGui::SeparatorText("Color");
-
-			static ImGuiColorEditFlags colorPickerFlag;
-			colorPickerFlag |= ImGuiColorEditFlags_NoLabel;
-			colorPickerFlag |= ImGuiColorEditFlags_AlphaBar;
-			colorPickerFlag |= ImGuiColorEditFlags_AlphaPreview;
-			colorPickerFlag |= ImGuiColorEditFlags_NoSidePreview;
-			colorPickerFlag |= ImGuiColorEditFlags_NoSmallPreview;
-
-			ImGui::ColorPicker4("Box Color", (float *)&Box.color, colorPickerFlag);
-
-
-			ImGui::SeparatorText("Texture");
-
-			if (Box.hasTexture())
-			{
-				ImGui::Image((ImTextureID)Box.getTexture(), ImVec2(64, 64), ImVec2(0.0f, 1.0f), ImVec2(1.0f, 0.0f));
-				ImGui::SameLine();
-			}
-
-			ImGui::BeginGroup();
-			{
-				if (ImGui::Button((Box.hasTexture()) ? "Change" : "Add"))
-				{
-					//ImGui::SetItemTooltip("Change the texture");
-					filePath = showOpenFileDialog();
-
-					if (!filePath.empty())
-						showTextureModalChange = true;
-				}
-				ImGui::SetItemTooltip("Add/Change the texture of the box");
-
-				if (Box.hasTexture())
-				{
-					if (ImGui::Button("Delete"))
-						showTextureModalDelete = true;
-
-					ImGui::SetItemTooltip("Delete the texture of the box");
-				}
-			}
-			ImGui::EndGroup();
-		}
-
-		ImGui::End();
+		modalName.clear();
+		ImGui::EndPopup();
 	}
 
-	void modal(const char *modalName, void (*modalUi)())
+	// A simple modal to use. For advanced modal, use beginModal.
+	void simpleModal(const char *modalName, void (*modalUi)())
 	{
 		ImGui::OpenPopup(modalName);
 		ImVec2 center = ImGui::GetMainViewport()->GetCenter();
@@ -445,10 +416,7 @@ int main()
 	// OpenGL init
 
 	// Create box
-	Box.create(0.2f, ImVec4(1.0f, 1.0f, 1.0f, 1.0f));
-	Box.createShader("T1_Shader.vert", "T1_Shader.frag");
-	//Box.createTexture("dalle.png", GL_REPEAT, GL_REPEAT, GL_NEAREST_MIPMAP_NEAREST, GL_NEAREST, GL_RGB);
-	Box.createBufferData();
+	Box box("T1_Shader.vert", "T1_Shader.frag", 0.2f, ImVec4(1.0f, 1.0f, 1.0f, 1.0f));
 
 	while (!glfwWindowShouldClose(window))
 	{
@@ -511,76 +479,125 @@ int main()
 		}
 
 		if (App.showBoxConfig)
-			App.windowBoxConfig();
+		{
+			ImGui::Begin("Box Config", &App.showBoxConfig);
+
+			if (ImGui::CollapsingHeader("Graphics"))
+			{
+				ImGui::SeparatorText("Color");
+
+				static ImGuiColorEditFlags colorPickerFlag;
+				colorPickerFlag |= ImGuiColorEditFlags_NoLabel;
+				colorPickerFlag |= ImGuiColorEditFlags_AlphaBar;
+				colorPickerFlag |= ImGuiColorEditFlags_AlphaPreview;
+				colorPickerFlag |= ImGuiColorEditFlags_NoSidePreview;
+				colorPickerFlag |= ImGuiColorEditFlags_NoSmallPreview;
+
+				ImGui::ColorPicker4("Box Color", (float *)&box.color, colorPickerFlag);
+
+
+				ImGui::SeparatorText("Texture");
+
+				if (box.hasTexture())
+				{
+					ImGui::Image((ImTextureID)box.getTexture(), ImVec2(64, 64), ImVec2(0.0f, 1.0f), ImVec2(1.0f, 0.0f));
+					ImGui::SameLine();
+				}
+
+				ImGui::BeginGroup();
+				{
+					if (ImGui::Button((box.hasTexture()) ? "Change" : "Add"))
+					{
+						//ImGui::SetItemTooltip("Change the texture");
+						App.filePath = showOpenFileDialog();
+
+						if (!App.filePath.empty())
+							App.showTextureModalChange = true;
+					}
+					ImGui::SetItemTooltip("Add/Change the texture of the box");
+
+					if (box.hasTexture())
+					{
+						if (ImGui::Button("Delete"))
+							App.showTextureModalDelete = true;
+
+						ImGui::SetItemTooltip("Delete the texture of the box");
+					}
+				}
+				ImGui::EndGroup();
+			}
+
+			ImGui::End();
+		}
 
 		if (App.showTextureModalChange)
 		{
-			App.modal(
-				"Change texture",
-				[]() -> void {
-					GLuint wrapper[] = { GL_REPEAT, GL_MIRRORED_REPEAT, GL_CLAMP_TO_EDGE, GL_CLAMP_TO_BORDER };
-					GLuint filters[] = { GL_NEAREST, GL_LINEAR, GL_LINEAR_MIPMAP_NEAREST, GL_LINEAR_MIPMAP_LINEAR };
-					GLuint fmts[] = { GL_RGB, GL_RGBA };
+			App.beginModal("Change texture");
+			if (App.showModal())
+			{
+				GLuint wrapper[] = { GL_REPEAT, GL_MIRRORED_REPEAT, GL_CLAMP_TO_EDGE, GL_CLAMP_TO_BORDER };
+				GLuint filters[] = { GL_NEAREST, GL_LINEAR, GL_LINEAR_MIPMAP_NEAREST, GL_LINEAR_MIPMAP_LINEAR };
+				GLuint fmts[] = { GL_RGB, GL_RGBA };
 
-					static int wrapperCurrent = 0;
-					static int filterCurrent = 0;
-					static int formatCurrent = 0;
+				static int wrapperCurrent = 0;
+				static int filterCurrent = 0;
+				static int formatCurrent = 0;
 
-					ImGui::Combo("Wrapper", &wrapperCurrent, "Repeat\0Mirrored-Repeat\0Clamp to edge\0Clamp to border");
-					ImGui::Combo("Filter", &filterCurrent, "Nearest\0Linear\0Linear - Mipmap Nearest\0Linear - Mipmap Linear");
-					ImGui::Combo("Format", &formatCurrent, "RGB\0RGBA");
+				ImGui::Combo("Wrapper", &wrapperCurrent, "Repeat\0Mirrored-Repeat\0Clamp to edge\0Clamp to border");
+				ImGui::Combo("Filter", &filterCurrent, "Nearest\0Linear\0Linear - Mipmap Nearest\0Linear - Mipmap Linear");
+				ImGui::Combo("Format", &formatCurrent, "RGB\0RGBA");
 
-					if (ImGui::Button("OK", ImVec2(120, 0)))
-					{
-						Box.createTexture(
-							App.filePath.c_str(),
-							wrapper[wrapperCurrent],
-							wrapper[wrapperCurrent],
-							filters[filterCurrent],
-							filters[filterCurrent],
-							fmts[formatCurrent]);
-						App.showTextureModalChange = false;
-						App.filePath.clear();
-					}
-
-					ImGui::SameLine();
-
-					if (ImGui::Button("Cancel", ImVec2(120, 0)))
-					{
-						App.showTextureModalChange = false;
-						App.filePath.clear();
-					}
+				if (ImGui::Button("OK", ImVec2(120, 0)))
+				{
+					box.createTexture(
+						App.filePath.c_str(),
+						wrapper[wrapperCurrent],
+						wrapper[wrapperCurrent],
+						filters[filterCurrent],
+						filters[filterCurrent],
+						fmts[formatCurrent]);
+					App.showTextureModalChange = false;
+					App.filePath.clear();
 				}
-			);
+
+				ImGui::SameLine();
+
+				if (ImGui::Button("Cancel", ImVec2(120, 0)))
+				{
+					App.showTextureModalChange = false;
+					App.filePath.clear();
+				}
+
+				App.endModal();
+			}
 		}
 
 		if (App.showTextureModalDelete)
 		{
-			App.modal(
-				"Delete texture?",
-				[]() -> void {
-					ImGui::Text("Do you want to delete the texture?");
+			App.beginModal("Delete texture?");
+			if (App.showModal())
+			{
+				ImGui::Text("Do you want to delete the texture?");
 
-					if (ImGui::Button("OK", ImVec2(120, 0)))
-					{
-						Box.deleteTexture();
-						App.showTextureModalDelete = false;
-					}
-
-					ImGui::SameLine();
-
-					if (ImGui::Button("Cancel", ImVec2(120, 0)))
-					{
-						App.showTextureModalDelete = false;
-					}
+				if (ImGui::Button("OK", ImVec2(120, 0)))
+				{
+					box.deleteTexture();
+					App.showTextureModalDelete = false;
 				}
-			);
+
+				ImGui::SameLine();
+
+				if (ImGui::Button("Cancel", ImVec2(120, 0)))
+				{
+					App.showTextureModalDelete = false;
+				}
+			}
 		}
 
-		Box.draw();
+		box.draw();
 
-		Box.use();
-		glUniform4f(glGetUniformLocation(Box.getProgramID(), "uColor"), Box.color.x, Box.color.y, Box.color.z, Box.color.w);
+		box.use();
+		glUniform4f(glGetUniformLocation(box.getProgramID(), "uColor"), box.color.x, box.color.y, box.color.z, box.color.w);
 
 		ImGui::Render();
 		ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
