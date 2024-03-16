@@ -12,6 +12,9 @@
 #include "imgui_impl_glfw.h"
 #include "imgui_impl_opengl3.h"
 
+#include <gtc/matrix_transform.hpp>
+#include <gtc/type_ptr.hpp>
+
 #define STB_IMAGE_IMPLEMENTATION
 #include <stb_image.h>
 
@@ -23,8 +26,6 @@
 typedef std::string String;
 
 void frameBufferCallback(GLFWwindow *window, int width, int height);
-
-String showOpenFileDialog();
 
 struct Shader
 {
@@ -217,6 +218,8 @@ public:
 
 		glBindVertexArray(VAO);
 		glDrawElements(GL_TRIANGLES, sizeof(this->indices) / sizeof(int), GL_UNSIGNED_INT, 0);
+
+		glUniform4f(glGetUniformLocation(getProgramID(), "uColor"), color.x, color.y, color.z, color.w);
 	}
 
 	GLuint getVAO(GLuint id)
@@ -262,6 +265,10 @@ public:
 
 struct Box : public Shader
 {
+	glm::mat4 model = glm::mat4(1.0f);
+
+	glm::vec3 pos = glm::vec3(0.0f);
+
 	Box(const char *vf, const char *ff, float size, ImVec4 color)
 	{
 		create(size, color);
@@ -288,7 +295,7 @@ struct
 	// Modal
 	String modalName;
 
-	// Create a modal, use showModal() to start showing the modal and endModal() to en the modal.
+	//Create a modal, use showModal() to start showing the modal and endModal() to en the modal.
 	void beginModal(const char *name)
 	{
 		this->modalName = name;
@@ -299,7 +306,7 @@ struct
 	}
 
 	// Call beginModal() before using this function.
-	bool showModal() { return ImGui::BeginPopupModal(modalName.c_str(), NULL, ImGuiWindowFlags_AlwaysAutoResize); }
+	bool showModal() const { return ImGui::BeginPopupModal(modalName.c_str(), NULL, ImGuiWindowFlags_AlwaysAutoResize); }
 
 	// A function to end the already created modal.
 	void endModal()
@@ -311,67 +318,69 @@ struct
 	// A simple modal to use. For advanced modal, use beginModal.
 	void simpleModal(const char *modalName, void (*modalUi)())
 	{
-		ImGui::OpenPopup(modalName);
+		this->modalName = modalName;
+
+		ImGui::OpenPopup(this->modalName.c_str());
 		ImVec2 center = ImGui::GetMainViewport()->GetCenter();
 		ImGui::SetNextWindowPos(center, ImGuiCond_Appearing, ImVec2(0.5f, 0.5f));
 		if (ImGui::BeginPopupModal(modalName, NULL, ImGuiWindowFlags_AlwaysAutoResize))
 		{
 			modalUi();
 
-			ImGui::EndPopup();
+			endModal();
 		}
 	}
-} App;
 
-String showOpenFileDialog()
-{
-	String output;
-
-	HRESULT hr = CoInitializeEx(NULL, COINIT_APARTMENTTHREADED | COINIT_DISABLE_OLE1DDE);
-	if (SUCCEEDED(hr))
+	String showOpenFileDialog()
 	{
-		IFileOpenDialog *fileOpenDialog;
+		String output;
 
-		// Create the FileOpenDialog
-		hr = CoCreateInstance(CLSID_FileOpenDialog, NULL, CLSCTX_ALL, 
-			IID_IFileOpenDialog, reinterpret_cast<void **>(&fileOpenDialog));
+		HRESULT hr = CoInitializeEx(NULL, COINIT_APARTMENTTHREADED | COINIT_DISABLE_OLE1DDE);
 		if (SUCCEEDED(hr))
 		{
-			// Show the Open File Dialog
-			hr = fileOpenDialog->Show(NULL);
+			IFileOpenDialog *fileOpenDialog;
 
-			// Get the file name from the dialog box
+			// Create the FileOpenDialog
+			hr = CoCreateInstance(CLSID_FileOpenDialog, NULL, CLSCTX_ALL,
+				IID_IFileOpenDialog, reinterpret_cast<void **>(&fileOpenDialog));
 			if (SUCCEEDED(hr))
 			{
-				IShellItem *shItem;
+				// Show the Open File Dialog
+				hr = fileOpenDialog->Show(NULL);
 
-				hr = fileOpenDialog->GetResult(&shItem);
+				// Get the file name from the dialog box
 				if (SUCCEEDED(hr))
 				{
-					PWSTR filePath;
-					hr = shItem->GetDisplayName(SIGDN_FILESYSPATH, &filePath);
+					IShellItem *shItem;
 
-					// Display the file name to the user
+					hr = fileOpenDialog->GetResult(&shItem);
 					if (SUCCEEDED(hr))
 					{
-						std::wstring wFilePath(filePath);
-						output = String(wFilePath.begin(), wFilePath.end());
+						PWSTR filePath;
+						hr = shItem->GetDisplayName(SIGDN_FILESYSPATH, &filePath);
 
-						CoTaskMemFree(filePath);
+						// Display the file name to the user
+						if (SUCCEEDED(hr))
+						{
+							std::wstring wFilePath(filePath);
+							output = String(wFilePath.begin(), wFilePath.end());
+
+							CoTaskMemFree(filePath);
+						}
+
+						shItem->Release();
 					}
-
-					shItem->Release();
 				}
+
+				fileOpenDialog->Release();
 			}
 
-			fileOpenDialog->Release();
+			CoUninitialize();
 		}
 
-		CoUninitialize();
+		return output;
 	}
-
-	return output;
-}
+} App;
 
 void frameBufferCallback(GLFWwindow *window, int width, int height)
 {
@@ -413,13 +422,33 @@ int main()
 
 	ImGui_ImplGlfw_InitForOpenGL(window, true);
 	ImGui_ImplOpenGL3_Init(GLSL_VERSION);
-	// OpenGL init
 
 	// Create box
 	Box box("T1_Shader.vert", "T1_Shader.frag", 0.2f, ImVec4(1.0f, 1.0f, 1.0f, 1.0f));
 
+	float lastTime = 0;
 	while (!glfwWindowShouldClose(window))
 	{
+		float currTime = (float)glfwGetTime();
+
+		float deltaTime = currTime - lastTime;
+
+		lastTime = currTime;
+
+		float boxSpeed = 0.25f * deltaTime;
+
+		if (GLFW_PRESS == glfwGetKey(window, GLFW_KEY_UP))
+			box.pos += glm::vec3(0.0f, 1.0f, 0.0f) * boxSpeed;
+
+		if (GLFW_PRESS == glfwGetKey(window, GLFW_KEY_DOWN))
+			box.pos -= glm::vec3(0.0f, 1.0f, 0.0f) * boxSpeed;
+
+		if (GLFW_PRESS == glfwGetKey(window, GLFW_KEY_LEFT))
+			box.pos -= glm::vec3(1.0f, 0.0f, 0.0f) * boxSpeed;
+
+		if (GLFW_PRESS == glfwGetKey(window, GLFW_KEY_RIGHT))
+			box.pos += glm::vec3(1.0f, 0.0f, 0.0f) * boxSpeed;
+
 		glClearColor(
 			App.backgroundColor.x,
 			App.backgroundColor.y,
@@ -495,7 +524,6 @@ int main()
 
 				ImGui::ColorPicker4("Box Color", (float *)&box.color, colorPickerFlag);
 
-
 				ImGui::SeparatorText("Texture");
 
 				if (box.hasTexture())
@@ -509,7 +537,7 @@ int main()
 					if (ImGui::Button((box.hasTexture()) ? "Change" : "Add"))
 					{
 						//ImGui::SetItemTooltip("Change the texture");
-						App.filePath = showOpenFileDialog();
+						App.filePath = App.showOpenFileDialog();
 
 						if (!App.filePath.empty())
 							App.showTextureModalChange = true;
@@ -594,10 +622,24 @@ int main()
 			}
 		}
 
+		// Update projection
+		//App.proj = glm::ortho(0.0f, (float)App.width, 0.0f, (float)App.height, 0.1f, 100.0f);
+		//App.proj = glm::perspective(glm::radians(75.0f), (float)(App.width / App.height), 0.1f, 100.0f);
+
+		// Draw box
+		box.model = glm::translate(box.model, box.pos);
+
 		box.draw();
 
-		box.use();
-		glUniform4f(glGetUniformLocation(box.getProgramID(), "uColor"), box.color.x, box.color.y, box.color.z, box.color.w);
+		glUniformMatrix4fv(
+			glGetUniformLocation(box.getProgramID(), "uModel"),
+			1,
+			GL_FALSE,
+			glm::value_ptr(box.model)
+		);
+
+		// Reset to matrix identity
+		box.model = glm::mat4(1.0f);
 
 		ImGui::Render();
 		ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
