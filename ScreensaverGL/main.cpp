@@ -4,6 +4,8 @@
 #include <fstream>
 #include <sstream>
 #include <vector>
+#include <thread>
+#include <mutex>
 
 #include <glad/glad.h>
 #include <GLFW/glfw3.h>
@@ -331,9 +333,9 @@ struct
 		}
 	}
 
-	String showOpenFileDialog()
+	void showOpenFileDialog(String *out)
 	{
-		String output;
+		std::mutex mutex;
 
 		HRESULT hr = CoInitializeEx(NULL, COINIT_APARTMENTTHREADED | COINIT_DISABLE_OLE1DDE);
 		if (SUCCEEDED(hr))
@@ -362,8 +364,12 @@ struct
 						// Display the file name to the user
 						if (SUCCEEDED(hr))
 						{
+							mutex.lock();
+
 							std::wstring wFilePath(filePath);
-							output = String(wFilePath.begin(), wFilePath.end());
+							*out = String(wFilePath.begin(), wFilePath.end());
+
+							mutex.unlock();
 
 							CoTaskMemFree(filePath);
 						}
@@ -377,14 +383,20 @@ struct
 
 			CoUninitialize();
 		}
-
-		return output;
 	}
 } App;
 
 void frameBufferCallback(GLFWwindow *window, int width, int height)
 {
 	glViewport(0, 0, width, height);
+}
+
+void changeTexture_concurrent()
+{
+	App.showOpenFileDialog(&App.filePath);
+
+	if (!App.filePath.empty())
+		App.showTextureModalChange = true;
 }
 
 int main()
@@ -536,11 +548,8 @@ int main()
 				{
 					if (ImGui::Button((box.hasTexture()) ? "Change" : "Add"))
 					{
-						//ImGui::SetItemTooltip("Change the texture");
-						App.filePath = App.showOpenFileDialog();
-
-						if (!App.filePath.empty())
-							App.showTextureModalChange = true;
+						std::thread tr(changeTexture_concurrent);
+						tr.detach();
 					}
 					ImGui::SetItemTooltip("Add/Change the texture of the box");
 
