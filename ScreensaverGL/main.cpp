@@ -99,11 +99,11 @@ public:
 		}
 		catch (const std::ifstream::failure e)
 		{
-			printf("Error. Failed to read shader files\n");
+			printf("%s\n", e.what());
 			return;
 		}
 
-		const char *vertShader = vertCode.c_str();
+		const char *vertexShader = vertCode.c_str();
 		const char *fragShader = fragCode.c_str();
 
 		GLuint vertex, fragment;
@@ -111,7 +111,7 @@ public:
 		char infoLog[512];
 
 		vertex = glCreateShader(GL_VERTEX_SHADER);
-		glShaderSource(vertex, 1, &vertShader, NULL);
+		glShaderSource(vertex, 1, &vertexShader, NULL);
 		glCompileShader(vertex);
 
 		glGetShaderiv(vertex, GL_COMPILE_STATUS, &success);
@@ -567,6 +567,11 @@ int main()
 			if (ImGui::CollapsingHeader("Position"))
 			{
 				ImGui::Text("X:\t%.2f | Y:\t%.2f", box.pos.x, box.pos.y);
+
+				if (ImGui::Button("Reset"))
+				{
+					box.pos = glm::vec3(0.0f);
+				}
 			}
 
 			ImGui::End();
@@ -587,7 +592,7 @@ int main()
 
 				ImGui::Combo("Wrapper", &wrapperCurrent, "Repeat\0Mirrored-Repeat\0Clamp to edge\0Clamp to border");
 				ImGui::Combo("Filter", &filterCurrent, "Nearest\0Linear\0Linear - Mipmap Nearest\0Linear - Mipmap Linear");
-				ImGui::Combo("Format", &formatCurrent, "RGB\0RGBA");
+				ImGui::Combo("Format", &formatCurrent, "RGB (JPEG, JPG)\0RGBA (PNG)");
 
 				if (ImGui::Button("OK", ImVec2(120, 0)))
 				{
@@ -633,6 +638,8 @@ int main()
 				{
 					App.showTextureModalDelete = false;
 				}
+
+				App.endModal();
 			}
 		}
 
